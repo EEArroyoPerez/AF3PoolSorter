@@ -24,9 +24,9 @@ In the working directory, run the script as follows
 Rscript AF3PoolSorter.R NA1000proteome.faa 'YP_002518697.1' 2
 ```
 The arguments should be, in order:  
-	1. The proteome fasta file
-	2. The ID of the protein of interest, with quotation marks
-	3. The number of copies of the protein to include in the pool. If missing defaults to 1.
+	1. The proteome fasta file  
+	2. The ID of the protein of interest, with quotation marks  
+	3. The number of copies of the protein to include in the pool. If missing defaults to 1.  
 	
 ## Output
 The code generates a folder containing all the json files. Since the protein IDs are not included in the pool files, a csv table is generated to map the IDs to the proteins in each pool.
