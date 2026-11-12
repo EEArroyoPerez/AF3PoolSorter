@@ -9,8 +9,8 @@ The output is a folder with json files, each containing up to 30 jobs for the Al
 
 ## Requirements
 ### Software
-R version 4.6.1, with `dplyr`, `tidyr`, `stringr` & `jsonlite` installed.
-
+R version 4.6.1, with `dplyr`, `tidyr`, `stringr`, `seqinr` & `jsonlite` installed.
+If not found, the packages will be installed on the first run of the script.
 ### Inputs 
 FASTA file of the proteome.  
 Identifier of the protein of interest, as used in the FASTA file.  
