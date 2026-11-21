@@ -154,8 +154,8 @@ make_map <- function(pool) {
      all_seqs <- c(rep(query_seq, mer), df$Sequence)
      no_seqs       <- length(all_seqs)
 
-     #Chain IDs: A..Z, then AA, BA, CA, ... (AF3 accepts multi-character chain IDs)
-     chain_ids <- c(LETTERS, unlist(lapply(LETTERS, function(x) paste0(x, LETTERS))))
+     #Chain IDs: A..Z
+     chain_ids <- LETTERS
      if (no_seqs > length(chain_ids)) stop("Too many chains for the available chain IDs.")
      chain_ids <- chain_ids[seq_len(no_seqs)]
 
