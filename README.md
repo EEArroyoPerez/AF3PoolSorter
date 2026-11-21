@@ -44,7 +44,7 @@ On AlphaFold server, select all jobs belonging to one screen and download in a s
 Move the zip folder and the script 'ipTM_exporter.R' into your working directory, as well as the csv map generated with AF3PoolSorter. You then pass those files as arguments to the script  as follows:
 
 ```
-Rscript ipTM_exporter.R folds_2026_11_21_01_21.zip example_map.csv
+Rscript ipTM_exporter.R folds_2026_11_21_02_49.zip example_map.csv
 ```
 
 ## Output
