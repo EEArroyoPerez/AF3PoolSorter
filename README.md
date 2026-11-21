@@ -49,7 +49,7 @@ Rscript ipTM_exporter.R folds_2026_11_21_02_49.zip example_map.csv
 
 ## Output
 
-A folder is generated with the name of the query protein in the files. In the folder there's the following files
+A folder is generated with the name of the query protein. In the folder there's the following files
 ### All_ipTMs.csv
 A very big table containing the scores for all pairwise combinations of the proteins in every pool. The values are the average of the top 5 models produced by AlphaFold for each pool.
 **Chain 1 & 2**: Protein identifier within pool. A corresponds to the query protein, potentially B, C... too if the submission was a multimer  
