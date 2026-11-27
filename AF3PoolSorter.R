@@ -128,8 +128,8 @@ make_job <- function(pool) {
     df <- final_table %>%
         filter(Pool == pool) 
 
-    all_ids  <- c(rep(query_id, mer), df$Protein)
-    all_seqs <- c(rep(query_seq, mer), df$Sequence)
+    all_ids  <- c(query_ids, df$Protein)
+    all_seqs <- c(query_seq, df$Sequence)
     no_seqs        <- length(all_seqs)
 
     sequences <- lapply(seq_len(no_seqs), function(i) {
@@ -150,8 +150,8 @@ make_map <- function(pool) {
      df <- final_table %>%
         filter(Pool == pool) 
 
-     all_ids  <- c(rep(query_id, mer), df$Protein)
-     all_seqs <- c(rep(query_seq, mer), df$Sequence)
+     all_ids  <- c(query_ids, df$Protein)
+     all_seqs <- c(query_seq, df$Sequence)
      no_seqs       <- length(all_seqs)
 
      #Chain IDs: A..Z
@@ -174,25 +174,76 @@ make_map <- function(pool) {
      chain_map
 }
 
+
+
+
+
 #### Script
 
-arg <- commandArgs(TRUE)
+## separate arguments
+args <- commandArgs(TRUE)
 
-if(length(arg) < 3) {
-    arg[3] <- 1 } #Default to monomer if no n-mer specified
+### Get integers for copy numbers
+### Taken from varhandle::check.numeric
+regexp_pattern <- "(^(-|\\+)?\\d+$)|(^(-|\\+)?(\\d*)e(-|\\+)?(\\d+)$)"
+isnumeric <- grepl(pattern = regexp_pattern, x = args)
+args_numeric <- as.numeric(args[isnumeric])
+args <- args[!isnumeric]
+file <- args[grep('*.txt|*.fasta|*.faa', args)]
+query <- args[! args %in% file]
 
-file <- arg[1]
-query <- arg[2]
-mer <- as.numeric(arg[3])
+if (length(file) > 1) stop('Too many sequence files provided')
+if(length(file) == 0) stop('Proteome file not found')
+#If no copy numbers provided, assume it's 1 for every protein
+if (length(args_numeric) == 0) {
+    message('Copy number not provided. Assumed 1')
+    args_numeric <- rep(1, length(query))
+}
+if (length(args_numeric) != length(query)) stop('Mismatched number of proteins/copy number')
 
+#Make table with copy numbers
+copy_numbers <- data.frame(Protein = query,
+                           CopyNumber = args_numeric)
+
+#Read proteome file
 x <- seqinr::read.fasta(file, forceDNAtolower = FALSE, as.string = TRUE)
 seqs <- data.frame(Protein = unlist(x) %>% names,
                    Sequence = unlist(x),
                    Length = sapply(x, nchar)) %>%
     as_tibble
-query <- seqs[seqs$Protein == query,] #Find query protein
-n <- 5000 - (query$Length * mer)
-seqs <- seqs[seqs$Protein != query$Protein,] #Remove query protein from proteome
+#Check if all query proteins are found in proteome
+if (length(query) != nrow( seqs[seqs$Protein %in% query,]) ) {
+    message("Query protein not found in proteome")
+    print(query[!query %in% seqs$Protein])
+    stop()
+}
+query <- seqs[seqs$Protein %in% query,] #Find query protein
+##Find size of complex
+query <- query %>%
+    left_join(copy_numbers, by = join_by(Protein)) 
+n <- sum(query$CopyNumber * query$Length)
+message("Query complex")
+print(copy_numbers)
+message("Total length: ", n)
+n <- 5000 - n  #Define max pool length, minus query complex
+seqs <- seqs[! seqs$Protein %in% query$Protein,] #Remove query protein from proteome
+if (nrow(filter(seqs, Length > n)) > 0 ) { #Check if any protein doesn't fit in the pools at all
+    seqs_too_big <- seqs %>%
+        filter(Length > n)
+    write.csv(seqs_too_big, 'Seqs_too_big.csv', row.names = F)
+    message(nrow(seqs_too_big), ' sequences too big for current pool size')
+}
+#Remove sequences that are too big to fit in pools
+seqs <- seqs %>%
+    filter(Length <= n)
+
+
+
+#### Pending
+### Fix name of seqs_too_big.csv
+
+
+
 
 #Run initial sorting algorithm
 results <- distr_seqs(seqs, n)
@@ -229,15 +280,11 @@ if(nrow(check_pools(final_table, n)) == 0) {
                                        
 
 
-#Export to json
+##### Export to json
 
-#Code  from claude. Generates 2-letter ID for each protein in each pool, and generates the map to track them back. Probably unnecessary with  bacterial protein naming conventions.
-
-## ---- Helpers -----------------------------------------------------------------
+## Check sequences
 
 valid_aa  <- "^[ACDEFGHIKLMNPQRSTVWY]+$"
-
-## ---- Read and check the table ------------------------------------------------
 
 final_table$Sequence <- vapply(final_table$Sequence, clean_seq, character(1))
 final_table$valid    <- grepl(valid_aa, final_table$Sequence)
@@ -248,20 +295,28 @@ if (any(!final_table$valid)) {
 final_table <- final_table[final_table$valid, ]
 
 
-
+## Query_id for file name, query_ids for map and job functions
 
 #Define query sequence
-query_id <- query$Protein
-query_seq <- query$Sequence
+query_id <- paste(query$Protein, collapse = '_')
+query_ids <- character()
+query_seq <- character()
+#
+for( line in 1:nrow(query)) {
+    query_ids <- append(query_ids, rep(query$Protein[line], query$CopyNumber[line]))
+    query_seq <- append(query_seq, rep(query$Sequence[line], query$CopyNumber[line]))
+}
+
 
 ##Check query sequence
 query_seq <- clean_seq(query_seq)
-if (!grepl(valid_aa, query_seq)) stop("Query sequence contains non-standard residues.")
+if (!all(grepl(valid_aa, query_seq))) stop("Query sequence contains non-standard residues.")
 
 #Define file names and folders for json files
+mer <- paste(query$CopyNumber, collapse = '_')
 no_pools <- length(unique(final_table$Pool)) #numebr of pools
-folder_json <- paste0(query_id, "_", mer,"mer_pools_json")
-folder_map <- paste0(query_id, "_", mer,"mer_pools_map")
+folder_json <- paste0(query_id, "_", mer,"_pools_json")
+folder_map <- paste0(query_id, "_", mer,"_pools_map")
 
 dir.create(folder_json, showWarnings = F)
 dir.create(folder_map, showWarnings = F)
@@ -306,14 +361,6 @@ message("Wrote ", no_files, ' files with ', length(pools), ' pools from ',
 
 
 files <- list.files(path = folder_map, pattern = '*.csv')
-## readfiles <- function(file, path) {
-##     x <- read.csv(file.path(path, file))
-##     pool <- tools::file_path_sans_ext(file)
-##     pool <- substring(pool, 19)
-##     pool <- as.numeric(pool)
-##     x$Pool <- pool
-##     x
-## }
 
 maps <- lapply(file.path(folder_map, files), read.csv)
 maps <- bind_rows(maps) %>% arrange(Pool)
